@@ -312,7 +312,10 @@ def stage_snap(ep_sel=None):
     for ei in idxs:
         T = float(EPOCHS[ei])
         ent = {"T": T, "gps": {}, "gal": {}}
-        xg = load_seg(PATH, FS, T, 0.310)
+        # A non-coherent snapshot measures the code phase at the CENTRE of its window (the
+        # code drifts Doppler/1540 chips/s through it): centre the window on T so the phase
+        # belongs to T. (fix.py's 9/22 bug, -0.15 s x range rate per bird, ~150 m.)
+        xg = load_seg(PATH, FS, T - 0.150, 0.310)
         for b in gps:
             prn = b["prn"]
             r = gps_acquire(xg, FS, [prn],
@@ -321,7 +324,7 @@ def stage_snap(ep_sel=None):
             cp = r.get("code_phase_f", r["code_phase"])
             ent["gps"][str(prn)] = {"metric": r["metric"],
                                     "phi_ms": (cp % n1) / FS * 1e3}
-        xa = load_seg(PATH, FS, T, 40 * T_COH + 0.01)
+        xa = load_seg(PATH, FS, T - 20 * T_COH, 40 * T_COH + 0.01)      # centred on T, as above
         for b in gal:
             prn = b["prn"]
             fd = float(np.polyval(b["fd_poly"], T))
