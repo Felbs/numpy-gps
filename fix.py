@@ -973,8 +973,18 @@ def full_fix(path, fs, det, dur, multi=1, use_pool=True):
               else np.array([min(dur - 1.0, 45.0)]))
     import json as _json2
     results, cache = [], []
-    for T_RX in epochs:
-        xsnap = load_seg(path, fs, T_RX, 0.310)
+    SNAP_MS = 300
+    for T_RX_start in epochs:
+        xsnap = load_seg(path, fs, T_RX_start, SNAP_MS * 1e-3 + 0.010)
+        # The snapshot code phase is a NON-COHERENT SUM over SNAP_MS one-ms blocks, and the
+        # code drifts through them at (Doppler / 1540) chips/s - up to a whole chip across
+        # the window at 5 kHz. The summed peak therefore sits at the phase of the window's
+        # CENTRE, not its start, and the transmit time must be evaluated there too.
+        # Measured 9/22 against gr-gpsrx's tracking channels on the same capture: every
+        # bird's range was off by -0.15 s x its range rate (-114 m at +4.5 kHz, +20 m at
+        # -1 kHz; slope 0.93 to this prediction, 6.8 m residual) - a ~150 m position error,
+        # mostly in altitude, that two captures two hours apart both carried.
+        T_RX = T_RX_start + 0.5 * SNAP_MS * 1e-3
         entries = []
         for prn, (eph, tim) in birds.items():
             # Evaluate the Doppler AT this epoch. tr["fd"] is referenced to
@@ -986,7 +996,7 @@ def full_fix(path, fs, det, dur, multi=1, use_pool=True):
             _tr = tim["tr"]
             fd_at = (_tr["fd"]
                      + _tr.get("fdot", 0.0) * (T_RX - _tr.get("tref", 0.0)))
-            r = acquire(xsnap, fs, [prn], np.array([fd_at]), 300)[prn]
+            r = acquire(xsnap, fs, [prn], np.array([fd_at]), SNAP_MS)[prn]
             cp = r.get("code_phase_f", r["code_phase"])     # sub-sample
             phi_ms = (cp % n1) / fs * 1e3                   # 0..1 ms
             aa, bb = fits[prn]
