@@ -1,4 +1,4 @@
-# GPSTuna — Python dependencies
+# numpy-gps — Python dependencies
 #
 #   pip install -r requirements.txt
 #

@@ -59,9 +59,9 @@ holder = radio_lock.Holder("gps_replicate",
 holder.__enter__()
 try:
     sys.argv = ["locate.py", "--secs", "120", "--antenna", "Antenna B"]
-    sys.path.insert(0, r"Z:\src\GPSTuna")
+    sys.path.insert(0, str(HERE.parent))
     log("capturing 120 s on Antenna B ...")
-    runpy.run_path(r"Z:\src\GPSTuna\locate.py", run_name="__main__")
+    runpy.run_path(str(HERE.parent / "locate.py"), run_name="__main__")
 except SystemExit:
     pass
 except Exception as exc:

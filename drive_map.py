@@ -299,7 +299,7 @@ def main():
     out = Path(a.out) if a.out else Path(f"drive_map_{tag}.html")
     if not out.is_absolute():
         out = LOCAL / out
-    title = f"GPSTuna war drive {a.drive}" if a.drive else "GPSTuna fixes"
+    title = f"numpy-gps war drive {a.drive}" if a.drive else "numpy-gps fixes"
     stops = build_stops(fixes, load_drive_log())
     out.write_text(build_html(stops, title), encoding="utf-8")
     grades = [st["grade"] for st in stops]

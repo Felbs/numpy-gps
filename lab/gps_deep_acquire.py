@@ -66,7 +66,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, r"Z:\src\GPSTuna")
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from measure import CODE_RATE, acquire, ca_code, generator_selfcheck, load_seg, sampled_code  # noqa: E402
 
 FS = 2_048_000

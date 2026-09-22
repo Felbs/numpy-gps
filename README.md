@@ -1,4 +1,4 @@
-# GPSTuna 🛰️ — a software GPS *and Galileo* receiver from raw SDR IQ
+# numpy-gps 🛰️ — a software GPS *and Galileo* receiver from raw SDR IQ, in pure NumPy
 
 Point any SDR at 1575.42 MHz, record the raw L1 hiss, and this turns it into
 satellite orbits, a relativity experiment, Galileo's navigation message, and
@@ -149,8 +149,8 @@ flowchart TD
 
 ## Install
 ```bash
-git clone https://github.com/Felbs/GPSTuna.git
-cd GPSTuna
+git clone https://github.com/Felbs/numpy-gps.git
+cd numpy-gps
 pip install -r requirements.txt        # numpy + scipy, that is all
 python measure.py --selftest           # proves the install with no radio, no capture
 ```
@@ -371,5 +371,5 @@ effect, a continuously-running verification of Einstein — and this repo reads 
 
 ## Lineage
 Built from the `radio-grid-atlas` GPS-L1 work; algorithms per **IS-GPS-200** and
-**WGS-84**. Part of the "Tuna" family of open SDR tools
-(hamTuna · wxTuna · setiTuna · GPSTuna).
+**WGS-84**. Formerly published as **GPSTuna** (the old URL redirects); renamed to say what
+it is - a GPS receiver written in NumPy alone, no compiled code, no GNSS library.

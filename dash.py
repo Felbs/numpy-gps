@@ -288,7 +288,7 @@ def abort_run():
 PAGE = """<!doctype html>
 <html><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GPSTuna dash</title>
+<title>numpy-gps dash</title>
 <style>
  :root { color-scheme: dark; }
  body { background:#0b0f14; color:#c9d4e0; font:15px/1.45 ui-monospace,
@@ -319,7 +319,7 @@ PAGE = """<!doctype html>
  .grid { display:grid; grid-template-columns:auto 1fr; gap:2px 14px; }
 </style></head><body>
 <div class="row">
- <h1>&#128752; GPSTuna</h1>
+ <h1>&#128752; numpy-gps</h1>
  <span id="phase" class="pill">idle</span>
  <span id="clock" class="dim"></span>
 </div>

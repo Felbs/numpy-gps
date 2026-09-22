@@ -1,6 +1,6 @@
 # RINEX export — design spec
 
-**Goal:** turn a GPSTuna capture into the two files a free PPP service eats
+**Goal:** turn a numpy-gps capture into the two files a free PPP service eats
 (`CSRS-PPP`, `APPS`, `RTKLIB`), so a static capture becomes a **decimetre or
 better** position using IGS precise orbits and clocks — instead of the
 ~29 m broadcast-ephemeris fix `locate.py` produces today.
@@ -32,7 +32,7 @@ Writing it to RINEX is plumbing, not new DSP.
 
 Sourced from `joint_fix.assemble()`, `fix.py`, `hatch.py`, `gal_inav.py`.
 
-| RINEX needs | GPSTuna has | Where |
+| RINEX needs | numpy-gps has | Where |
 |---|---|---|
 | pseudorange C1C | ✅ `t_rx - t_sys`, × c | `joint_fix.assemble()` → `t_sys` |
 | carrier phase L1C (cycles) | ✅ continuous, per-epoch | `hatch.py` phase model |
@@ -127,11 +127,11 @@ Conservative flagging is free; a missed slip is not.
 
 ```
      3.05           OBSERVATION DATA    M (MIXED)           RINEX VERSION / TYPE
-GPSTuna 0.x         Felbs               20260910 051944 UTC PGM / RUN BY / DATE
+numpy-gps 0.x       Felbs               20260910 051944 UTC PGM / RUN BY / DATE
 SMIT                                                        MARKER NAME
 GEODETIC                                                    MARKER TYPE
 Felbs               -                                       OBSERVER / AGENCY
-1                   SDRplay RSPdx       GPSTuna             REC # / TYPE / VERS
+1                   SDRplay RSPdx       numpy-gps           REC # / TYPE / VERS
 1                   GPS patch                               ANT # / TYPE
   1122334.4455 -4966554.3210  3885221.9876                  APPROX POSITION XYZ
         0.0000        0.0000        0.0000                  ANTENNA: DELTA H/E/N
