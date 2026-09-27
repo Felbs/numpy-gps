@@ -152,6 +152,7 @@ flowchart TD
 git clone https://github.com/Felbs/numpy-gps.git
 cd numpy-gps
 pip install -r requirements.txt        # numpy + scipy, that is all
+# Arch/Omarchy: pacman -S python-numpy python-scipy   (SoapySDR for live capture: pacman -S soapysdr; SDRplay: yay -S libsdrplay soapysdrplay3-git)
 python measure.py --selftest           # proves the install with no radio, no capture
 ```
 The self-test needs nothing but Python: it checks the C/A code generator
