@@ -657,9 +657,10 @@ def validate(path=None):
     from measure import require_capture
     require_capture(path)
     dur = Path(path).stat().st_size / 4 / fs
+    from measure import sky_search, THRESH
     x = load_seg(path, fs, 0.5, 0.310)
-    acq = acquire(x, fs, list(range(1, 33)), np.arange(-7000, 7001, 250.0), 300)
-    det = {p: r for p, r in acq.items() if r["metric"] > 2.5}
+    acq = sky_search(x, fs, 300)
+    det = {p: r for p, r in acq.items() if r["metric"] > THRESH}
     print(f"[fix] validate on {Path(path).name}: {len(det)} birds {sorted(det)}")
     for prn, r in det.items():
         eph = decode_eph(path, fs, prn, r["dopp"], dur)
@@ -745,9 +746,10 @@ def main():
     require_capture(a.iq)
     check_sidecar(a.iq, fs)
     dur = Path(a.iq).stat().st_size / 4 / fs
+    from measure import sky_search, THRESH
     x = load_seg(a.iq, fs, 0.5, 0.310)
-    acq = acquire(x, fs, list(range(1, 33)), np.arange(-7000, 7001, 250.0), 300)
-    det = {p: r for p, r in acq.items() if r["metric"] > 2.5}
+    acq = sky_search(x, fs, 300)
+    det = {p: r for p, r in acq.items() if r["metric"] > THRESH}
     print(f"[fix] {len(det)} birds acquired: {sorted(det)}")
     if len(det) < 4:
         print(f"[fix] NEED >= 4 satellites for a position fix, have {len(det)}.")

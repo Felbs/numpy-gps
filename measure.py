@@ -45,7 +45,17 @@ HERE = Path(__file__).resolve().parent
 FL1 = 1575.42e6
 CODE_RATE = 1.023e6
 C_LIGHT = 299792458.0
-THRESH = 2.5          # peak / second-peak detection threshold
+# Peak / second-peak detection threshold of the SKY SEARCH (sky_search()).
+# Measured 2026-11-13 on two attic/patch captures, ten snapshots, every PRN
+# that was not in the sky (215 trials each): the metric of an absent
+# satellite never passed 1.24 with 1 ms coherent or 1.29 with 4 ms. The old
+# 2.5 therefore left ~4 dB unused - on the August capture it rejected PRN 3
+# (38 dB-Hz, metric 2.0 at 1 ms / 3.0 at 4 ms), which gr-gpsrx tracks and
+# decodes for the whole file. The idea of testing it came from a same-file
+# comparison with OnAir's receiver (ideas only, no code).
+THRESH = 1.5
+ACQ_COH = 4           # ms added coherently in the sky search
+ACQ_STEP = 125.0      # Hz: a 4 ms sum resolves 250 Hz, so half of that
 
 # 4-series categorical palette (Okabe-Ito subset, CVD-validated)
 COLORS = ["#0072B2", "#E69F00", "#009E73", "#CC79A7"]
@@ -120,16 +130,25 @@ def sampled_code(prn, fs, n_samp):
 
 
 # ------------------------------------------------------------- acquisition
-def _acquire_rows(blocks, fs, prns, fd):
+def _acquire_rows(blocks, fs, prns, fd, coh=1):
     """One Doppler: noncoherent power vs code phase for every PRN, in prns
-    order. The unit of work for both the serial and the parallel path."""
-    n1 = blocks.shape[1]
+    order. The unit of work for both the serial and the parallel path.
+    coh > 1: that many 1 ms correlations are added COHERENTLY before the
+    power is taken (see acquire())."""
+    nb, n1 = blocks.shape
     t = np.arange(n1) / fs
     BF = np.fft.fft(blocks * np.exp(-2j * np.pi * fd * t)[None, :], axis=1)
+    if coh > 1:
+        # the wipe-off restarts its phase in every block; a coherent sum
+        # needs the carrier to run on from one block to the next
+        nb = (nb // coh) * coh
+        BF = BF[:nb] * np.exp(-2j * np.pi * fd * 1e-3 * np.arange(nb))[:, None]
     rows = []
     for p in prns:
         code_f = np.conj(np.fft.fft(sampled_code(p, fs, n1)))
         corr = np.fft.ifft(BF * code_f[None, :], axis=1)
+        if coh > 1:
+            corr = corr.reshape(nb // coh, coh, n1).sum(axis=1)
         rows.append((np.abs(corr) ** 2).sum(axis=0))
     return rows
 
@@ -137,12 +156,14 @@ def _acquire_rows(blocks, fs, prns, fd):
 _ACQ = {}                                   # worker-side: the shared blocks
 
 
-def _acq_init(blocks, fs, prns):
+def _acq_init(blocks, fs, prns, coh=1):
     _ACQ["blocks"], _ACQ["fs"], _ACQ["prns"] = blocks, fs, prns
+    _ACQ["coh"] = coh
 
 
 def _acq_task(fd):
-    return _acquire_rows(_ACQ["blocks"], _ACQ["fs"], _ACQ["prns"], fd)
+    return _acquire_rows(_ACQ["blocks"], _ACQ["fs"], _ACQ["prns"], fd,
+                         _ACQ.get("coh", 1))
 
 
 def _pool_allowed():
@@ -236,7 +257,7 @@ def _acq_tasks(fds):
     return [_acq_task(fd) for fd in fds]
 
 
-def _acquire_rows_parallel(blocks, fs, prns, dopplers):
+def _acquire_rows_parallel(blocks, fs, prns, dopplers, coh=1):
     """Doppler-parallel _acquire_rows. Returns rows in dopplers order, or
     None if a pool cannot be started (caller falls back to serial)."""
     import multiprocessing as _mp
@@ -253,7 +274,8 @@ def _acquire_rows_parallel(blocks, fs, prns, dopplers):
     try:
         ctx = _mp.get_context("spawn")
         with ctx.Pool(n_workers, initializer=_acq_init,
-                      initargs=(np.ascontiguousarray(blocks), fs, prns)) as pool:
+                      initargs=(np.ascontiguousarray(blocks), fs, prns,
+                                coh)) as pool:
             # serial cost ~ 0.5 ms per (PRN, Doppler, block) on a slow core
             fds = list(dopplers)
             cs = max(1, len(fds) // (3 * n_workers))
@@ -268,10 +290,17 @@ def _acquire_rows_parallel(blocks, fs, prns, dopplers):
         return None
 
 
-def acquire(x, fs, prns, dopplers, n_noncoh):
+def acquire(x, fs, prns, dopplers, n_noncoh, coh=1):
     """Parallel code-phase search. 1 ms coherent x n_noncoh noncoherent.
     Returns {prn: dict(metric, dopp, code_phase, peak_over_floor)} where
-    metric = peak / second peak (2nd peak excludes +-1 chip at all Dopplers)."""
+    metric = peak / second peak (2nd peak excludes +-1 chip at all Dopplers).
+
+    coh: milliseconds added coherently before the power is taken (n_noncoh
+    ms are used in all, so n_noncoh // coh powers are summed). Worth ~3 dB
+    on a weak satellite per doubling; the Doppler grid must then be no
+    coarser than 500 / coh Hz (a T-second sum resolves 1/T Hz), and a nav
+    bit that flips inside a group spoils that group (one in ten at 4 ms)."""
+    coh = max(1, int(coh))
     n1 = int(round(fs * 1e-3))
     blocks = x[: n1 * n_noncoh].reshape(n_noncoh, n1)
     excl = int(round(fs / CODE_RATE))
@@ -286,9 +315,9 @@ def acquire(x, fs, prns, dopplers, n_noncoh):
     rows = None
     if (len(prns) * len(dopplers) * n_noncoh >= 200_000
             and _pool_allowed()):
-        rows = _acquire_rows_parallel(blocks, fs, prns, dopplers)
+        rows = _acquire_rows_parallel(blocks, fs, prns, dopplers, coh)
     if rows is None:
-        rows = [_acquire_rows(blocks, fs, prns, fd) for fd in dopplers]
+        rows = [_acquire_rows(blocks, fs, prns, fd, coh) for fd in dopplers]
     out = {}
     for pi, p in enumerate(prns):
         m = np.vstack([r[pi] for r in rows])
@@ -310,6 +339,15 @@ def acquire(x, fs, prns, dopplers, n_noncoh):
                       code_phase_f=float(ci + frac),
                       peak_over_floor=float(m[di, ci] / np.median(m)))
     return out
+
+
+def sky_search(x, fs, n_ms, prns=None, span_hz=7000.0):
+    """The whole-sky search every entry point starts with: all 32 PRNs,
+    +-span_hz, ACQ_COH ms coherent over n_ms ms of x. Returns acquire()'s
+    dict; a satellite is present when its metric > THRESH."""
+    prns = list(range(1, 33)) if prns is None else list(prns)
+    dops = np.arange(-span_hz, span_hz + 1, ACQ_STEP)
+    return acquire(x, fs, prns, dops, n_ms, coh=ACQ_COH)
 
 
 def check_sidecar(path, fs, expect_dtype="int16"):
@@ -581,9 +619,10 @@ def main():
         print(f"\n{label}: {Path(path).name}")
         noise_stats(path, fs)
         x = load_seg(path, fs, 0.5, 0.310)
-        acq[label] = acquire(x, fs, list(range(1, 33)), dop, n_noncoh=300)
+        acq[label] = sky_search(x, fs, 300)
         det = {p: r for p, r in acq[label].items() if r["metric"] > THRESH}
-        print(f"  acquisition 1 ms x 300, +-7 kHz / 250 Hz, threshold {THRESH}:")
+        print(f"  acquisition {ACQ_COH} ms coherent x {300 // ACQ_COH}, +-7 kHz / "
+              f"{ACQ_STEP:.0f} Hz, threshold {THRESH}:")
         for p, r in sorted(det.items(), key=lambda kv: -kv[1]["metric"]):
             print(f"    PRN{p:2d}  metric {r['metric']:.2f}  Doppler {r['dopp']:+5.0f} Hz"
                   f"  code phase {r['code_phase']} samp   DETECTED")

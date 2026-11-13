@@ -252,9 +252,9 @@ def decode_eph_win(path, fs, prn, dopp, ta, tb):
 
 def stage_gps(only_prn=None):
     x = load_seg(PATH, FS, GPS_TA + 5.0, 0.310)
-    acq = gps_acquire(x, FS, list(range(1, 33)),
-                      np.arange(-7000, 7001, 250.0), 300)
-    det = {p: r for p, r in acq.items() if r["metric"] > 2.5}
+    from measure import sky_search, THRESH
+    acq = sky_search(x, FS, 300)
+    det = {p: r for p, r in acq.items() if r["metric"] > THRESH}
     print(f"[gps] {len(det)} birds acquired at t={GPS_TA+5:.0f} s: "
           f"{sorted(det)}", flush=True)
     todo = [only_prn] if only_prn else sorted(det)

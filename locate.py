@@ -8,8 +8,8 @@ Indoors you'll see 1-3 weak satellites (not enough); with sky view, 6-12.
   python locate.py            # 180 s capture on Antenna B, then locate (--secs 300 for a sure first fix)
   python locate.py --iq f.cs16   # locate from an existing capture
 
-A 3D fix needs >= 4 satellites strong enough to decode their orbit (metric > 3.5,
-C/N0 ~ 38+). This prints the count first so you know immediately whether the sky
+A 3D fix needs >= 4 satellites strong enough to decode their orbit (C/N0 ~ 36+;
+the sky search finds them a few dB below that). This prints the count first so you know immediately whether the sky
 view is good; if it is, the full pseudorange solve runs and the result stays
 private in lab_local/fix_result.json.
 """
@@ -310,10 +310,15 @@ def main():
     check_sidecar(path, FS)
     dur = Path(path).stat().st_size / 4 / FS
     x = load_seg(path, FS, 0.5, 0.400)
-    acq = acquire(x, FS, list(range(1, 33)), np.arange(-7000, 7001, 250.0), 400)
-    thr = float(os.environ.get("GPSTUNA_MIN_METRIC", "3.5"))
+    from measure import sky_search, THRESH
+    acq = sky_search(x, FS, 400)
+    # Every detected satellite is tried: one too weak to decode its orbit
+    # ("no parity-clean subframe anchor") is simply left out of the solve.
+    # GPSTUNA_MIN_METRIC raises the bar again (it was 3.5 on the 1 ms search,
+    # which kept a 36 dB-Hz satellite that decodes completely out of the fix).
+    thr = float(os.environ.get("GPSTUNA_MIN_METRIC", str(THRESH)))
     strong = {p: r for p, r in acq.items() if r["metric"] > thr}
-    weak = {p: r for p, r in acq.items() if 2.0 < r["metric"] <= thr}
+    weak = {p: r for p, r in acq.items() if THRESH < r["metric"] <= thr}
     print(f"SKY VIEW: {len(strong)} strong + {len(weak)} weak satellites")
     for p, r in sorted(strong.items(), key=lambda kv: -kv[1]["metric"]):
         print(f"  PRN{p:2d}  metric {r['metric']:.1f}  STRONG")

@@ -51,6 +51,16 @@ active patch antenna in an attic:
   exhaustive integer-millisecond search scored by residual + altitude sanity.
 - **Ionospheric scintillation** (`scint.py`) — S4 + phase indices from the same
   tracking, as a space-weather bonus.
+- **A sky search that uses what the samples hold.** Every entry point starts
+  with `measure.sky_search()`: 4 ms added coherently before the power is
+  taken, 125 Hz Doppler bins, detection at peak / second peak > 1.5. That
+  bar was 2.5 (and 3.5 in `locate.py`) on a 1 ms search until 2026-11-13,
+  when it was measured instead of assumed: over 215 searches for satellites
+  that were not in the sky, the metric never passed 1.29. The old bar
+  rejected a 36–38 dB-Hz satellite that decodes completely; with it back,
+  `locate.py` went from 6 to 8 satellites on one capture (epoch scatter
+  33 → 25 m) and from an invalid result (6 of 15 epochs wild) to a valid one
+  on another. A satellite found but too weak to decode is simply left out.
 - **Digs 6 dB deeper when asked.** `lab/gps_deep_acquire.py` extends the
   1 ms acquisition to 5 ms coherent × 100 noncoherent — measured **+6 dB**
   by burying a known-good capture in calibrated noise until each search
@@ -105,7 +115,7 @@ flowchart TD
   subgraph FRONT["RF front end"]
     IQ["raw L1 IQ, interleaved cs16<br/>any SDR (RTL-SDR / RSPdx / ...)"]
   end
-  IQ --> ACQ["acquire() — parallel code-phase × Doppler<br/>FFT correlation vs the PRN's C/A code"]
+  IQ --> ACQ["sky_search() — parallel code-phase × Doppler<br/>FFT correlation vs the PRN's C/A code<br/>4 ms coherent, 125 Hz bins, peak / 2nd peak &gt; 1.5"]
   ACQ --> TRK["track_sv() — carrier + code loop<br/>Doppler, code phase, C/N0"]
 
   subgraph DECODE["nav-message decode"]
@@ -221,13 +231,20 @@ count). The processing after that, on a 300 s / 2.4 GB capture:
 | one core (`GPSTUNA_SERIAL=1`, or a Pi) | ~3 min | same code, serial fallback |
 | before 2026-08-15 | 6.5 min | serial, and the ambiguity search alone was 70 s |
 
+(Timed before the 4 ms sky search of 2026-11-13, which has twice the Doppler
+bins and usually finds one or two more satellites to decode: on a 6-core
+desktop a 300 s capture went from 1.5 to 2.7 min.)
+
 The speed-ups are gated bit-for-bit — every per-epoch residual, integer
 offset and coordinate on the two reference captures is unchanged. What was
 *tried and rejected on measurement*: elevation-weighted least squares (worse
 rms and scatter on both captures — with 6–7 birds the geometry loss beats
 the noise gain; `GPSTUNA_WEIGHT=elev` still switches it on) and decoding the
 sub-3.5-metric "weak" birds (one decoded fine at 37 dB-Hz and 14° elevation
-and made the fix worse; one did not decode). Fifteen snapshot epochs instead
+and made the fix worse; one did not decode — on those two captures. On two
+other captures, 2026-11-13, with the 4 ms search, the weak birds made the fix
+better or left it unchanged, and they are now tried by default;
+`GPSTUNA_MIN_METRIC` raises the bar again). Fifteen snapshot epochs instead
 of five was the one accuracy change that measured better on both captures.
 
 ## Recreating this — the field guide
